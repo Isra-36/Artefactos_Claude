@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>De la secante a la tangente: f(x) = 2x²</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#fafaf7;--fg:#1d2330;--muted:#666d7a;--card:#ffffff;--grid:#e3e5ea;--axis:#8a90a0;
+  --curve:#1f5fbf;--sec:#d9480f;--tan:#2b8a3e;--pt:#1d2330;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171f;--fg:#e8eaf0;--muted:#a0a6b4;--card:#1c202b;--grid:#2c3140;--axis:#7d8496;
+    --curve:#6ea8ff;--sec:#ff8a5c;--tan:#5fd07a;--pt:#e8eaf0;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14171f;--fg:#e8eaf0;--muted:#a0a6b4;--card:#1c202b;--grid:#2c3140;--axis:#7d8496;
+  --curve:#6ea8ff;--sec:#ff8a5c;--tan:#5fd07a;--pt:#e8eaf0;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:.2rem 0 .2rem}
+p.sub{margin:0 0 12px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--grid);border-radius:12px;padding:12px;margin-bottom:12px}
+svg{width:100%;height:auto;display:block;touch-action:none}
+.controls{display:grid;gap:10px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+input[type=range]{flex:1;min-width:180px}
+button{background:var(--card);color:var(--fg);border:1px solid var(--axis);border-radius:8px;padding:6px 12px;font-size:.9rem;cursor:pointer}
+button:hover{border-color:var(--curve)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.stat{border:1px solid var(--grid);border-radius:10px;padding:8px 10px}
+.stat b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:.8rem}
+.formula{overflow-x:auto;font-family:"Cambria Math",Georgia,serif;font-size:1.02rem}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:.9rem}
+th,td{border-bottom:1px solid var(--grid);padding:5px 8px;text-align:right}
+th{color:var(--muted);font-weight:600}
+tr.hl td{background:color-mix(in srgb,var(--sec) 14%,transparent)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.85rem;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+</style>
+</head>
+<body>
+<main>
+  <h1>De la secante a la tangente</h1>
+  <p class="sub">f(x) = 2x² · punto fijo P(4, 32) · mueve el punto Q con el control deslizante o arrastrándolo en la gráfica</p>
+
+  <div class="card">
+    <svg id="plot" viewBox="0 0 760 480" role="img" aria-label="Gráfica de f(x)=2x² con la recta secante y la tangente en x=4"></svg>
+    <div class="legend">
+      <span><i style="background:var(--curve)"></i>f(x) = 2x²</span>
+      <span><i style="background:var(--sec)"></i>secante por P y Q</span>
+      <span><i style="background:var(--tan);height:2px"></i>tangente en x = 4 (m = 16)</span>
+    </div>
+  </div>
+
+  <div class="card controls">
+    <div class="row">
+      <label for="h"><b>h = x − 4</b></label>
+      <input id="h" type="range" min="-2" max="2" step="0.0001" value="-1.5">
+    </div>
+    <div class="row">
+      <button id="fromL">Acercar por la izquierda</button>
+      <button id="fromR">Acercar por la derecha</button>
+      <button id="stop">Detener</button>
+      <label><input type="checkbox" id="showTan" checked> mostrar tangente</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><span>x del punto Q</span><b id="sx">—</b></div>
+      <div class="stat"><span>f(x) en Q</span><b id="sfx">—</b></div>
+      <div class="stat"><span>pendiente de la secante</span><b id="sm">—</b></div>
+      <div class="stat"><span>distancia a la tangente (m − 16)</span><b id="sd">—</b></div>
+    </div>
+    <p class="formula" id="formula" style="margin:10px 0 0"></p>
+  </div>
+
+  <div class="card">
+    <b>Tabla de aproximaciones</b> <span style="color:var(--muted);font-size:.85rem">(Q(x) = (2x² − 32)/(x − 4) = 2(x + 4))</span>
+    <div class="tablewrap">
+      <table id="tbl"></table>
+    </div>
+    <p style="margin:8px 0 0;color:var(--muted);font-size:.9rem">
+      Por la izquierda y por la derecha la pendiente de la secante se acerca a <b style="color:var(--fg)">16</b>:
+      lím<sub>x→4</sub> Q(x) = 16 = f′(4). Nota que el límite de f(x) (32) es la <i>altura</i> del punto P, no la pendiente.
+    </p>
+  </div>
+</main>
+
+<script>
+(function(){
+  var f=function(x){return 2*x*x};
+  var X0=4, Y0=f(X0);
+  var W=760,H=480,mL=48,mR=16,mT=16,mB=36;
+  var xmin=0,xmax=7,ymin=-5,ymax=105;
+  var sx=function(x){return mL+(x-xmin)/(xmax-xmin)*(W-mL-mR)};
+  var sy=function(y){return H-mB-(y-ymin)/(ymax-ymin)*(H-mT-mB)};
+  var ix=function(px){return xmin+(px-mL)/(W-mL-mR)*(xmax-xmin)};
+  var svg=document.getElementById('plot');
+  var NS='http://www.w3.org/2000/svg';
+  function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+
+  // grid + axes
+  for(var gx=0;gx<=7;gx++){
+    el('line',{x1:sx(gx),y1:mT,x2:sx(gx),y2:H-mB,stroke:'var(--grid)','stroke-width':1});
+    var t=el('text',{x:sx(gx),y:H-mB+18,'text-anchor':'middle','font-size':12,fill:'var(--muted)'});t.textContent=gx;
+  }
+  for(var gy=0;gy<=100;gy+=20){
+    el('line',{x1:mL,y1:sy(gy),x2:W-mR,y2:sy(gy),stroke:'var(--grid)','stroke-width':1});
+    var t2=el('text',{x:mL-8,y:sy(gy)+4,'text-anchor':'end','font-size':12,fill:'var(--muted)'});t2.textContent=gy;
+  }
+  el('line',{x1:mL,y1:sy(0),x2:W-mR,y2:sy(0),stroke:'var(--axis)','stroke-width':1.5});
+  el('line',{x1:sx(0),y1:mT,x2:sx(0),y2:H-mB,stroke:'var(--axis)','stroke-width':1.5});
+
+  // curve
+  var d='';
+  for(var i=0;i<=300;i++){var x=xmin+(xmax-xmin)*i/300;d+=(i?'L':'M')+sx(x).toFixed(1)+' '+sy(f(x)).toFixed(1)}
+  el('path',{d:d,fill:'none',stroke:'var(--curve)','stroke-width':3});
+
+  // clip region for lines
+  var clip=el('clipPath',{id:'cp'});
+  el('rect',{x:mL,y:mT,width:W-mL-mR,height:H-mT-mB},clip);
+
+  function lineThrough(m,x1,y1,color,w,dash){
+    var xa=xmin,xb=xmax;
+    var ya=y1+m*(xa-x1),yb=y1+m*(xb-x1);
+    return el('line',{x1:sx(xa),y1:sy(ya),x2:sx(xb),y2:sy(yb),stroke:color,'stroke-width':w,'stroke-dasharray':dash||'','clip-path':'url(#cp)'});
+  }
+
+  var tan=lineThrough(16,X0,Y0,'var(--tan)',2,'7 5');
+  var sec=lineThrough(0,X0,Y0,'var(--sec)',3);
+
+  // guide lines for Q
+  var vq=el('line',{stroke:'var(--sec)','stroke-width':1,'stroke-dasharray':'3 4'});
+  var hq=el('line',{stroke:'var(--sec)','stroke-width':1,'stroke-dasharray':'3 4'});
+
+  // P
+  el('circle',{cx:sx(X0),cy:sy(Y0),r:6,fill:'var(--pt)'});
+  var pl=el('text',{x:sx(X0)+10,y:sy(Y0)+18,'font-size':13,fill:'var(--fg)'});pl.textContent='P(4, 32)';
+  // Q
+  var q=el('circle',{r:8,fill:'var(--sec)',stroke:'var(--bg)','stroke-width':2,cursor:'grab'});
+  var ql=el('text',{'font-size':13,fill:'var(--sec)','font-weight':'600'});ql.textContent='Q';
+
+  var hEl=document.getElementById('h'),showTan=document.getElementById('showTan');
+  var anim=null;
+
+  function fmt(v,n){return (Math.abs(v)<1e-9?0:v).toFixed(n)}
+
+  function update(h){
+    if(Math.abs(h)<1e-6) h=h<0?-1e-6:1e-6;
+    var x=X0+h,y=f(x);
+    var m=(y-Y0)/(x-X0);           // exacto = 2(x+4)
+    q.setAttribute('cx',sx(x));q.setAttribute('cy',sy(y));
+    ql.setAttribute('x',sx(x)+(h<0?-22:12));ql.setAttribute('y',sy(y)+(h<0?-8:-10));
+    vq.setAttribute('x1',sx(x));vq.setAttribute('x2',sx(x));vq.setAttribute('y1',sy(0));vq.setAttribute('y2',sy(y));
+    hq.setAttribute('x1',sx(0));hq.setAttribute('x2',sx(x));hq.setAttribute('y1',sy(y));hq.setAttribute('y2',sy(y));
+    var xa=xmin,xb=xmax;
+    sec.setAttribute('y1',sy(Y0+m*(xa-X0)));sec.setAttribute('y2',sy(Y0+m*(xb-X0)));
+    tan.style.display=showTan.checked?'':'none';
+    document.getElementById('sx').textContent=fmt(x,4);
+    document.getElementById('sfx').textContent=fmt(y,4);
+    document.getElementById('sm').textContent=fmt(m,4);
+    document.getElementById('sd').textContent=fmt(m-16,4);
+    document.getElementById('formula').innerHTML=
+      'm = (f('+fmt(x,4)+') − f(4)) / ('+fmt(x,4)+' − 4) = ('+fmt(y,4)+' − 32) / '+fmt(h,4)+' = <b>'+fmt(m,4)+'</b>';
+    hEl.value=h;
+  }
+
+  function stop(){if(anim){cancelAnimationFrame(anim);anim=null}}
+  function approach(sign){
+    stop();
+    var h=sign*2,t0=null;
+    var start=h;
+    function step(ts){
+      if(t0===null)t0=ts;
+      var t=(ts-t0)/6000;            // 6 s de recorrido
+      if(t>1){update(sign*1e-4);anim=null;return}
+      // decaimiento exponencial: de 2 a 0.0001
+      h=sign*2*Math.pow(0.0001/2,t);
+      update(h);
+      anim=requestAnimationFrame(step);
+    }
+    anim=requestAnimationFrame(step);
+  }
+
+  hEl.addEventListener('input',function(){stop();update(parseFloat(hEl.value))});
+  showTan.addEventListener('change',function(){update(parseFloat(hEl.value))});
+  document.getElementById('fromL').onclick=function(){approach(-1)};
+  document.getElementById('fromR').onclick=function(){approach(1)};
+  document.getElementById('stop').onclick=stop;
+
+  // arrastre de Q
+  var drag=false;
+  function pt(e){var r=svg.getBoundingClientRect();var cx=(e.touches?e.touches[0].clientX:e.clientX);return (cx-r.left)/r.width*W}
+  function move(e){if(!drag)return;e.preventDefault();var x=ix(pt(e));x=Math.max(2,Math.min(6,x));update(x-X0)}
+  q.addEventListener('pointerdown',function(e){drag=true;stop();q.setPointerCapture&&q.setPointerCapture(e.pointerId)});
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',function(){drag=false});
+
+  // tabla
+  var hs=[-0.1,-0.01,-0.001,-0.0001,0.0001,0.001,0.01,0.1];
+  var html='<tr><th>x</th><th>f(x)</th><th>Q(x)</th></tr>';
+  hs.forEach(function(h){
+    var x=X0+h,m=2*(x+4);
+    html+='<tr data-h="'+h+'"><td>'+x.toFixed(4)+'</td><td>'+f(x).toFixed(5)+'</td><td>'+m.toFixed(4)+'</td></tr>';
+    if(h===-0.0001)html+='<tr><td colspan="3" style="text-align:center;color:var(--muted)">↓ x → 4 ↑</td></tr>';
+  });
+  document.getElementById('tbl').innerHTML=html;
+  document.querySelectorAll('#tbl tr[data-h]').forEach(function(tr){
+    tr.style.cursor='pointer';
+    tr.onclick=function(){stop();update(parseFloat(tr.getAttribute('data-h')))};
+  });
+
+  update(-1.5);
+})();
+</script>
+</body>
+</html>
